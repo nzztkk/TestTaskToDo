@@ -2,16 +2,15 @@ import SwiftUI
 
 struct ToDoCreateView: View {
     @ObservedObject var controller: ToDoListViewController
+    @Binding var editingTask: ToDoItem?
     @Environment(\.dismiss) var dismiss
-    
+
     let today = Date()
-    
+
     var body: some View {
         NavigationView {
-            VStack(alignment: .leading, spacing: 10) {
-                
+            VStack(alignment: .leading, spacing: 16) {
                 // Имя задачи
-                
                 TextField("Новая задача", text: Binding(
                     get: { controller.newTaskTitle },
                     set: { controller.newTaskTitle = $0 }
@@ -20,14 +19,8 @@ struct ToDoCreateView: View {
                 .bold()
                 .padding(.horizontal)
                 .padding(.top, 30)
-                
-                Spacer()
-                
-            
-                
-                
-                // Выбор даты
-                
+
+                // Дата
                 DatePicker("Дата", selection: Binding(
                     get: { controller.newTaskDueDate ?? today },
                     set: { controller.newTaskDueDate = $0 }
@@ -35,10 +28,8 @@ struct ToDoCreateView: View {
                 .labelsHidden()
                 .padding(.horizontal)
                 .datePickerStyle(.compact)
-                
-                
-                
-                // Поле для описания
+
+                // Описание
                 TextEditor(text: Binding(
                     get: { controller.newTaskDescription },
                     set: { controller.newTaskDescription = $0 }
@@ -53,33 +44,32 @@ struct ToDoCreateView: View {
                             Text("Запишите задачи здесь")
                                 .foregroundColor(.gray)
                                 .font(.body)
-                                .padding(.horizontal, 20)
-                                .padding(.top, 10)
+                                .padding(.horizontal, 24)
+                                .padding(.top, 12)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         }
                     }
                 )
-                
-               
-                
+
                 Spacer()
             }
             .background(Color(.systemBackground))
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Отмена") {
                         controller.cancelCreate()
+                        editingTask = nil
+                        dismiss()
                     }
-                    .foregroundColor(.blue)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Сохранить") {
                         let title = controller.newTaskTitle.isEmpty ? "Новая задача" : controller.newTaskTitle
                         controller.newTaskTitle = title
-                        controller.saveTask()
+                        controller.saveTask(existingTask: editingTask)
+                        editingTask = nil
+                        dismiss()
                     }
-                    .foregroundColor(.blue)
                 }
             }
         }
@@ -88,6 +78,6 @@ struct ToDoCreateView: View {
 
 struct ToDoCreateView_Previews: PreviewProvider {
     static var previews: some View {
-        ToDoCreateView(controller: ToDoListViewController())
+        ToDoCreateView(controller: ToDoListViewController(), editingTask: .constant(nil))
     }
 }

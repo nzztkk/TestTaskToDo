@@ -3,46 +3,74 @@ import SwiftUI
 struct ToDoListView: View {
     @ObservedObject var controller: ToDoListViewController
 
-    @State private var navigateToAddTask: Bool = false
     @State private var searchText: String = ""
-    @State private var prompt: String = "Поиск задач..."
-    @State private var selectedTask: ToDoItem? = nil
+    @State private var navigateToCreate: Bool = false
+    @State private var editingTask: ToDoItem? = nil
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter
+    }()
 
     var body: some View {
         NavigationView {
             List {
-                ForEach(filteredTasks) { task in
-                    HStack {
-                        Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(task.completed ? .green : .gray)
-                        Text(task.title)
-                            .strikethrough(task.completed, color: .gray)
-                            .foregroundColor(task.completed ? .gray : .primary)
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        controller.toggleTaskCompletion(task)
-                    }
-                    .contextMenu {
-                        Button(action: {
-                            selectedTask = task
-                            controller.editTask(task)
-                        }) {
-                            Label("Редактировать", systemImage: "pencil")
-                        }
+                Section(header: Text("Список задач")) {
+                    ForEach(filteredTasks) { task in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .top) {
+                                Button(action: {
+                                    controller.toggleTaskCompletion(task)
+                                }) {
+                                    Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(task.completed ? .yellow : .gray)
+                                        .imageScale(.large)
+                                }
+                                .buttonStyle(PlainButtonStyle())
 
-                        Button(action: {
-                            controller.deleteTask(task)
-                        }) {
-                            Label("Удалить", systemImage: "trash")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(task.title)
+                                        .font(.headline)
+                                        .foregroundColor(task.completed ? .gray : .primary)
+                                        .strikethrough(task.completed)
+
+                                    if let desc = task.description, !desc.isEmpty {
+                                        Text(desc)
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    if let date = task.dueDate {
+                                        Text("Срок: \(dateFormatter.string(from: date))")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .contextMenu {
+                            Button("Редактировать", systemImage: "pencil") {
+                                editingTask = task
+                                controller.prepareForEditing(task)
+                                navigateToCreate = true
+                            }
+
+                            Button("Удалить", systemImage: "trash") {
+                                controller.deleteTask(task)
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Задачи")
-            .searchable(text: $searchText, prompt: prompt)
+            .searchable(text: $searchText, prompt: "Поиск задач...")
             .background(
-                NavigationLink(destination: ToDoCreateView(controller: controller), isActive: $navigateToAddTask) {
+                NavigationLink(
+                    destination: ToDoCreateView(controller: controller, editingTask: $editingTask),
+                    isActive: $navigateToCreate
+                ) {
                     EmptyView()
                 }
                 .hidden()
@@ -51,15 +79,14 @@ struct ToDoListView: View {
                 ToolbarItem(placement: .bottomBar) {
                     HStack {
                         Spacer()
-
-                        Text("\(filteredTasks.count) Зада\(ending(for: filteredTasks.count))")
+                        Text("\(filteredTasks.count) зада\(ending(for: filteredTasks.count))")
                             .font(.caption)
                             .foregroundColor(.secondary)
-
                         Spacer()
-
                         Button(action: {
-                            navigateToAddTask = true
+                            editingTask = nil
+                            controller.prepareForNewTask()
+                            navigateToCreate = true
                         }) {
                             Image(systemName: "square.and.pencil")
                                 .foregroundColor(.yellow)
@@ -67,6 +94,16 @@ struct ToDoListView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    var filteredTasks: [ToDoItem] {
+        if searchText.isEmpty {
+            return controller.tasks
+        } else {
+            return controller.tasks.filter {
+                $0.title.localizedCaseInsensitiveContains(searchText)
             }
         }
     }
@@ -83,15 +120,8 @@ struct ToDoListView: View {
         default: return "ч"
         }
     }
-
-    var filteredTasks: [ToDoItem] {
-        if searchText.isEmpty {
-            return controller.tasks
-        } else {
-            return controller.tasks.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
-        }
-    }
 }
+
 struct ToDoListView_Previews: PreviewProvider {
     static var previews: some View {
         ToDoListView(controller: ToDoListViewController())

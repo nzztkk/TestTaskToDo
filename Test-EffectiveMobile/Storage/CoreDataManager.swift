@@ -7,7 +7,7 @@ class CoreDataManager {
     let persistentContainer: NSPersistentContainer
 
     private init() {
-        persistentContainer = NSPersistentContainer(name: "Test_EffectiveMobile") // имя файла .xcdatamodeld
+        persistentContainer = NSPersistentContainer(name: "Test_EffectiveMobile")
         persistentContainer.loadPersistentStores { description, error in
             if let error = error {
                 fatalError("Ошибка загрузки хранилища: \(error)")
@@ -22,8 +22,7 @@ class CoreDataManager {
     func backgroundContext() -> NSManagedObjectContext {
         return persistentContainer.newBackgroundContext()
     }
-    
-    
+
     func saveTask(_ task: ToDoItem) {
         let context = backgroundContext()
         context.perform {
@@ -78,27 +77,23 @@ class CoreDataManager {
             }
         }
     }
-    
+
     func loadTasks(completion: @escaping ([ToDoItem]) -> Void) {
-        
-        let context = CoreDataManager.shared.backgroundContext()
-        
-        context.perform() {
+        let context = backgroundContext()
+        context.perform {
             let request: NSFetchRequest<CDToDoItem> = CDToDoItem.fetchRequest()
-            
+
             do {
                 let result = try context.fetch(request)
-                let tasks = result.map {cdItem in
+                let tasks = result.map { cdItem in
                     ToDoItem(
                         id: Int(cdItem.id),
                         title: cdItem.title ?? "",
-                        description: cdItem.description,
+                        description: cdItem.taskDescription,
                         dueDate: cdItem.dueDate,
                         completed: cdItem.completed
                     )
-                    
                 }
-                
                 DispatchQueue.main.async {
                     completion(tasks)
                 }
@@ -109,8 +104,46 @@ class CoreDataManager {
                 }
             }
         }
-        
     }
-    
-    
+
+    func syncTasksFromAPI(_ apiTasks: [ToDoItem], completion: @escaping () -> Void) {
+        let context = backgroundContext()
+        context.perform {
+            let request: NSFetchRequest<CDToDoItem> = CDToDoItem.fetchRequest()
+
+            do {
+                let existing = try context.fetch(request)
+                let existingDict = Dictionary(uniqueKeysWithValues: existing.map { (Int($0.id), $0) })
+
+                for apiTask in apiTasks {
+                    if let existing = existingDict[apiTask.id] {
+                        // Обновляем существующую задачу
+                        existing.title = apiTask.title
+                        existing.taskDescription = apiTask.description
+                        existing.dueDate = apiTask.dueDate
+                        existing.completed = apiTask.completed
+                    } else {
+                        // Создаём новую
+                        let newTask = CDToDoItem(context: context)
+                        newTask.id = Int64(apiTask.id)
+                        newTask.title = apiTask.title
+                        newTask.taskDescription = apiTask.description
+                        newTask.dueDate = apiTask.dueDate
+                        newTask.completed = apiTask.completed
+                    }
+                }
+
+                try context.save()
+                DispatchQueue.main.async {
+                    completion()
+                }
+
+            } catch {
+                print("❌ Ошибка синхронизации задач: \(error)")
+                DispatchQueue.main.async {
+                    completion()
+                }
+            }
+        }
+    }
 }

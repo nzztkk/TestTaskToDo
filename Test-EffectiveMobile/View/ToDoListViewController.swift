@@ -7,40 +7,23 @@ class ToDoListViewController: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showError: Bool = false
     @Published var showCreateView: Bool = false
-    
+
     @Published var newTaskTitle: String = ""
     @Published var newTaskDescription: String = ""
     @Published var newTaskDueDate: Date? = nil
     @Published var isDueDateEnabled: Bool = false
-    
+
     private var cancellables = Set<AnyCancellable>()
-    
-    
-    //API
+
     private let apiService = ToDoAPIService.shared
-    
-    
-    
-    //CoreData
     private let coreDataManager = CoreDataManager.shared
-    
-    func saveToCoreData(_ tasks: [ToDoItem]) {
-        for task in tasks {
-            coreDataManager.saveTask(task)
-        }
-    }
-    
-    func loadFromCoreData() {
-        coreDataManager.loadTasks { loadedTasks in
-            self.tasks = loadedTasks
-        }
-    }
-    
+
     init() {
-        loadTasks()
+        loadFromCoreData()
+        loadTasksFromAPI()
     }
-    
-    func loadTasks() {
+
+    func loadTasksFromAPI() {
         isLoading = true
         apiService.fetchTasks()
             .sink(receiveCompletion: { completion in
@@ -48,49 +31,77 @@ class ToDoListViewController: ObservableObject {
                 if case let .failure(error) = completion {
                     self.errorMessage = error.localizedDescription
                     self.showError = true
-                    // self.tasks = self.loadFallbackTasks()
                 }
-            }, receiveValue: { tasks in
-                self.tasks = tasks
+            }, receiveValue: { apiTasks in
+                // Обновляем задачи в Core Data без создания дубликатов
+                self.coreDataManager.syncTasksFromAPI(apiTasks) {
+                    self.loadFromCoreData()
+                }
             })
             .store(in: &cancellables)
     }
-    
+
+    func loadFromCoreData() {
+        coreDataManager.loadTasks { loadedTasks in
+            self.tasks = loadedTasks
+        }
+    }
+
     func toggleTaskCompletion(_ task: ToDoItem) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             var updatedTask = task
             updatedTask.completed.toggle()
             tasks[index] = updatedTask
-            saveToCoreData(tasks)
+            coreDataManager.updateTask(updatedTask)
         }
     }
-    
+
     func presentCreateView() {
+        prepareForNewTask()
+        showCreateView = true
+    }
+
+    func cancelCreate() {
+        showCreateView = false
+    }
+
+    func prepareForNewTask() {
         newTaskTitle = ""
         newTaskDescription = ""
         newTaskDueDate = nil
         isDueDateEnabled = false
+    }
+
+    func prepareForEditing(_ task: ToDoItem) {
+        newTaskTitle = task.title
+        newTaskDescription = task.description ?? ""
+        newTaskDueDate = task.dueDate
+        isDueDateEnabled = task.dueDate != nil
         showCreateView = true
     }
-    
-    func cancelCreate() {
-        showCreateView = false
-    }
-    
-    func saveTask() {
+
+    func saveTask(existingTask: ToDoItem? = nil) {
         let title = newTaskTitle.isEmpty ? "Новая задача" : newTaskTitle
-        let newTask = ToDoItem(
-            id: Int(Date().timeIntervalSince1970), // уникальный ID на основе времени
+
+        let task = ToDoItem(
+            id: existingTask?.id ?? Int(Date().timeIntervalSince1970),
             title: title,
             description: newTaskDescription.isEmpty ? nil : newTaskDescription,
             dueDate: isDueDateEnabled ? newTaskDueDate : nil,
-            completed: false
+            completed: existingTask?.completed ?? false
         )
-        tasks.append(newTask)
-        coreDataManager.saveTask(newTask) // ← сохраняем одну задачу
+
+        if let _ = existingTask {
+            coreDataManager.updateTask(task)
+            tasks = tasks.map { $0.id == task.id ? task : $0 }
+        } else {
+            coreDataManager.saveTask(task)
+            tasks.append(task)
+        }
+
         showCreateView = false
     }
-    
+
     func deleteTask(_ task: ToDoItem) {
         DispatchQueue.global(qos: .background).async {
             self.coreDataManager.deleteTask(task)
@@ -101,18 +112,6 @@ class ToDoListViewController: ObservableObject {
     }
 
     func editTask(_ task: ToDoItem) {
-        // Пример редактирования — показываем форму создания, но с уже заполненными данными
-        newTaskTitle = task.title
-        newTaskDescription = task.description ?? ""
-        newTaskDueDate = task.dueDate
-        isDueDateEnabled = task.dueDate != nil
-        showCreateView = true
-
-        // После редактирования можно либо обновить task.id (если ID уникален), либо по ID заменить
-        // Это зависит от логики saveTask()
+        prepareForEditing(task)
     }
-    
-    
-    
-   
 }
