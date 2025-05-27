@@ -11,7 +11,6 @@ class ToDoListViewController: ObservableObject {
     @Published var newTaskTitle: String = ""
     @Published var newTaskDescription: String = ""
     @Published var newTaskDueDate: Date? = nil
-    @Published var isDueDateEnabled: Bool = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -44,6 +43,7 @@ class ToDoListViewController: ObservableObject {
     func loadFromCoreData() {
         coreDataManager.loadTasks { loadedTasks in
             self.tasks = loadedTasks
+            print("Загружено задач: \(loadedTasks.count), первая задача dueDate: \(loadedTasks.first?.dueDate ?? nil)")
         }
     }
 
@@ -69,14 +69,12 @@ class ToDoListViewController: ObservableObject {
         newTaskTitle = ""
         newTaskDescription = ""
         newTaskDueDate = nil
-        isDueDateEnabled = false
     }
 
     func prepareForEditing(_ task: ToDoItem) {
         newTaskTitle = task.title
         newTaskDescription = task.description ?? ""
         newTaskDueDate = task.dueDate
-        isDueDateEnabled = task.dueDate != nil
         showCreateView = true
     }
 
@@ -87,7 +85,7 @@ class ToDoListViewController: ObservableObject {
             id: existingTask?.id ?? Int(Date().timeIntervalSince1970),
             title: title,
             description: newTaskDescription.isEmpty ? nil : newTaskDescription,
-            dueDate: isDueDateEnabled ? newTaskDueDate : nil,
+            dueDate: newTaskDueDate, // Всегда используем newTaskDueDate, который установлен в ToDoCreateView
             completed: existingTask?.completed ?? false
         )
 

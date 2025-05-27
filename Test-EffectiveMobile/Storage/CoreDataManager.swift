@@ -113,17 +113,21 @@ class CoreDataManager {
 
             do {
                 let existing = try context.fetch(request)
-                let existingDict = Dictionary(uniqueKeysWithValues: existing.map { (Int($0.id), $0) })
+                var existingDict = Dictionary(uniqueKeysWithValues: existing.map { (Int($0.id), $0) })
 
                 for apiTask in apiTasks {
                     if let existing = existingDict[apiTask.id] {
-                        // Обновляем существующую задачу
-                        existing.title = apiTask.title
-                        existing.taskDescription = apiTask.description
-                        existing.dueDate = apiTask.dueDate
-                        existing.completed = apiTask.completed
+                        if existing.title != apiTask.title ||
+                            existing.taskDescription != apiTask.description ||
+                            existing.dueDate != apiTask.dueDate ||
+                            existing.completed != apiTask.completed {
+                            
+                            existing.title = apiTask.title
+                            existing.taskDescription = apiTask.description
+                            existing.dueDate = apiTask.dueDate
+                            existing.completed = apiTask.completed
+                        }
                     } else {
-                        // Создаём новую
                         let newTask = CDToDoItem(context: context)
                         newTask.id = Int64(apiTask.id)
                         newTask.title = apiTask.title

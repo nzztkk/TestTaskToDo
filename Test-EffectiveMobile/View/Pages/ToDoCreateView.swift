@@ -6,50 +6,43 @@ struct ToDoCreateView: View {
     @Environment(\.dismiss) var dismiss
 
     let today = Date()
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter
+    }()
 
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
-                // Имя задачи
-                TextField("Новая задача", text: Binding(
-                    get: { controller.newTaskTitle },
-                    set: { controller.newTaskTitle = $0 }
-                ))
-                .font(.largeTitle)
-                .bold()
-                .padding(.horizontal)
-                .padding(.top, 30)
+                TextField("Новая задача", text: $controller.newTaskTitle)
+                    .font(.largeTitle)
+                    .bold()
+                    .padding(.horizontal)
+                    .padding(.top, 30)
 
-                // Дата
-                DatePicker("Дата", selection: Binding(
-                    get: { controller.newTaskDueDate ?? today },
-                    set: { controller.newTaskDueDate = $0 }
-                ), in: today..., displayedComponents: [.date])
-                .labelsHidden()
-                .padding(.horizontal)
-                .datePickerStyle(.compact)
+                Text("\(dateFormatter.string(from: today))")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .padding(.horizontal)
 
-                // Описание
-                TextEditor(text: Binding(
-                    get: { controller.newTaskDescription },
-                    set: { controller.newTaskDescription = $0 }
-                ))
-                .font(.body)
-                .foregroundColor(.primary)
-                .padding(.horizontal)
-                .frame(minHeight: 200)
-                .overlay(
-                    Group {
-                        if controller.newTaskDescription.isEmpty {
-                            Text("Запишите задачи здесь")
-                                .foregroundColor(.gray)
-                                .font(.body)
-                                .padding(.horizontal, 24)
-                                .padding(.top, 12)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                TextEditor(text: $controller.newTaskDescription)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .padding(.horizontal)
+                    .frame(minHeight: 200)
+                    .overlay(
+                        Group {
+                            if controller.newTaskDescription.isEmpty {
+                                Text("Запишите задачи здесь")
+                                    .foregroundColor(.gray)
+                                    .font(.body)
+                                    .padding(.horizontal, 24)
+                                    .padding(.top, 12)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            }
                         }
-                    }
-                )
+                    )
 
                 Spacer()
             }
@@ -64,14 +57,18 @@ struct ToDoCreateView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Сохранить") {
-                        let title = controller.newTaskTitle.isEmpty ? "Новая задача" : controller.newTaskTitle
-                        controller.newTaskTitle = title
                         controller.saveTask(existingTask: editingTask)
                         editingTask = nil
                         dismiss()
                     }
                 }
             }
+        }
+        .onDisappear {
+            editingTask = nil
+        }
+        .onAppear {
+            controller.newTaskDueDate = Date()
         }
     }
 }

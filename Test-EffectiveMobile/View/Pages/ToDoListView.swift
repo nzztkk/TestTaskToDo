@@ -1,5 +1,77 @@
 import SwiftUI
 
+// Выносим отдельное представление для одной задачи
+struct ToDoListItemView: View {
+    @ObservedObject var controller: ToDoListViewController
+    let task: ToDoItem
+    private let dateFormatter: DateFormatter 
+
+    @Binding var editingTask: ToDoItem?
+    @Binding var navigateToCreate: Bool
+
+    init(controller: ToDoListViewController, task: ToDoItem, dateFormatter: DateFormatter, editingTask: Binding<ToDoItem?>, navigateToCreate: Binding<Bool>) {
+        self.controller = controller
+        self.task = task
+        self.dateFormatter = dateFormatter
+        self._editingTask = editingTask
+        self._navigateToCreate = navigateToCreate
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                Button(action: {
+                    controller.toggleTaskCompletion(task)
+                }) {
+                    Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(task.completed ? .yellow : .gray)
+                        .imageScale(.large)
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(task.title)
+                        .font(.headline)
+                        .foregroundColor(task.completed ? .gray : .primary)
+                        .strikethrough(task.completed)
+
+                    if let desc = task.description, !desc.isEmpty {
+                        Text(desc)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let date = task.dueDate {
+                        Text("\(dateFormatter.string(from: date))")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    } else {
+                        Text("Дата не задана")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .contextMenu {
+            Button("Редактировать", systemImage: "pencil") {
+                editingTask = task
+                controller.prepareForEditing(task)
+                navigateToCreate = true
+            }
+
+            // ИСПРАВЛЕНИЕ: закрывающая скобка для Button
+            Button(role: .destructive, action: { // Добавим role: .destructive для красной кнопки удаления
+                controller.deleteTask(task)
+            }) {
+                Label("Удалить", systemImage: "trash")
+            }
+        }
+    }
+}
+
+
 struct ToDoListView: View {
     @ObservedObject var controller: ToDoListViewController
 
@@ -18,49 +90,13 @@ struct ToDoListView: View {
             List {
                 Section(header: Text("Список задач")) {
                     ForEach(filteredTasks) { task in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .top) {
-                                Button(action: {
-                                    controller.toggleTaskCompletion(task)
-                                }) {
-                                    Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(task.completed ? .yellow : .gray)
-                                        .imageScale(.large)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(task.title)
-                                        .font(.headline)
-                                        .foregroundColor(task.completed ? .gray : .primary)
-                                        .strikethrough(task.completed)
-
-                                    if let desc = task.description, !desc.isEmpty {
-                                        Text(desc)
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                    }
-
-                                    if let date = task.dueDate {
-                                        Text("Срок: \(dateFormatter.string(from: date))")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.vertical, 6)
-                        .contextMenu {
-                            Button("Редактировать", systemImage: "pencil") {
-                                editingTask = task
-                                controller.prepareForEditing(task)
-                                navigateToCreate = true
-                            }
-
-                            Button("Удалить", systemImage: "trash") {
-                                controller.deleteTask(task)
-                            }
-                        }
+                        ToDoListItemView(
+                            controller: controller,
+                            task: task,
+                            dateFormatter: dateFormatter,
+                            editingTask: $editingTask,
+                            navigateToCreate: $navigateToCreate
+                        )
                     }
                 }
             }
