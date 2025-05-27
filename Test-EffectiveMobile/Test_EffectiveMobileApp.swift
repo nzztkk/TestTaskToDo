@@ -11,7 +11,7 @@ import SwiftUI
 struct Test_EffectiveMobileApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ToDoListView(controller: ToDoListViewController())
         }
     }
 }
