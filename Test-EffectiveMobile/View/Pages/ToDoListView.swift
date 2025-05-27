@@ -2,16 +2,41 @@ import SwiftUI
 
 struct ToDoListView: View {
     @ObservedObject var controller: ToDoListViewController
-    
+
     @State private var navigateToAddTask: Bool = false
     @State private var searchText: String = ""
     @State private var prompt: String = "Поиск задач..."
-    
+    @State private var selectedTask: ToDoItem? = nil
+
     var body: some View {
         NavigationView {
             List {
                 ForEach(filteredTasks) { task in
-                    Text(task.title)
+                    HStack {
+                        Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(task.completed ? .green : .gray)
+                        Text(task.title)
+                            .strikethrough(task.completed, color: .gray)
+                            .foregroundColor(task.completed ? .gray : .primary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        controller.toggleTaskCompletion(task)
+                    }
+                    .contextMenu {
+                        Button(action: {
+                            selectedTask = task
+                            controller.editTask(task)
+                        }) {
+                            Label("Редактировать", systemImage: "pencil")
+                        }
+
+                        Button(action: {
+                            controller.deleteTask(task)
+                        }) {
+                            Label("Удалить", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .navigationTitle("Задачи")
@@ -24,34 +49,28 @@ struct ToDoListView: View {
             )
             .toolbar {
                 ToolbarItem(placement: .bottomBar) {
-                    VStack(spacing: 0) {
-                        
-                        
-                        HStack {
-                            Spacer()
-                            
-                            Text("\(filteredTasks.count) зада\(ending(for: filteredTasks.count))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                navigateToAddTask = true
-                            }) {
-                                Image(systemName: "square.and.pencil")
-                                    .foregroundColor(.yellow)
-                                    .padding()
-                                    
-                            }
+                    HStack {
+                        Spacer()
+
+                        Text("\(filteredTasks.count) Зада\(ending(for: filteredTasks.count))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        Button(action: {
+                            navigateToAddTask = true
+                        }) {
+                            Image(systemName: "square.and.pencil")
+                                .foregroundColor(.yellow)
+                                .padding()
                         }
-                        
                     }
                 }
             }
         }
     }
-    
+
     func ending(for count: Int) -> String {
         let rem100 = count % 100
         let rem10 = count % 10
@@ -64,7 +83,7 @@ struct ToDoListView: View {
         default: return "ч"
         }
     }
-    
+
     var filteredTasks: [ToDoItem] {
         if searchText.isEmpty {
             return controller.tasks
@@ -73,7 +92,6 @@ struct ToDoListView: View {
         }
     }
 }
-
 struct ToDoListView_Previews: PreviewProvider {
     static var previews: some View {
         ToDoListView(controller: ToDoListViewController())

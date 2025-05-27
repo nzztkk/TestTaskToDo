@@ -15,34 +15,43 @@ class ToDoListViewController: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     
-    // Заглушка для API и CoreData
-    private let apiService = APIService()
-    private let coreDataManager = CoreDataManager()
     
-    init() {
-        fetchTasks()
+    //API
+    private let apiService = ToDoAPIService.shared
+    
+    
+    
+    //CoreData
+    private let coreDataManager = CoreDataManager.shared
+    
+    func saveToCoreData(_ tasks: [ToDoItem]) {
+        for task in tasks {
+            coreDataManager.saveTask(task)
+        }
     }
     
-    func fetchTasks() {
+    func loadFromCoreData() {
+        coreDataManager.loadTasks { loadedTasks in
+            self.tasks = loadedTasks
+        }
+    }
+    
+    init() {
+        loadTasks()
+    }
+    
+    func loadTasks() {
         isLoading = true
-        showError = false
-        errorMessage = nil
-        
         apiService.fetchTasks()
             .sink(receiveCompletion: { completion in
                 self.isLoading = false
-                switch completion {
-                case .failure(let error):
-                    self.errorMessage = "Не удалось загрузить задачи: \(error.localizedDescription)"
+                if case let .failure(error) = completion {
+                    self.errorMessage = error.localizedDescription
                     self.showError = true
-                    // Загружаем тестовые данные при ошибке
-                    self.tasks = self.loadFallbackTasks()
-                case .finished:
-                    break
+                    // self.tasks = self.loadFallbackTasks()
                 }
             }, receiveValue: { tasks in
                 self.tasks = tasks
-                self.saveToCoreData(tasks)
             })
             .store(in: &cancellables)
     }
@@ -71,80 +80,39 @@ class ToDoListViewController: ObservableObject {
     func saveTask() {
         let title = newTaskTitle.isEmpty ? "Новая задача" : newTaskTitle
         let newTask = ToDoItem(
-            id: tasks.count + 1,
+            id: Int(Date().timeIntervalSince1970), // уникальный ID на основе времени
             title: title,
             description: newTaskDescription.isEmpty ? nil : newTaskDescription,
             dueDate: isDueDateEnabled ? newTaskDueDate : nil,
             completed: false
         )
         tasks.append(newTask)
-        saveToCoreData(tasks)
+        coreDataManager.saveTask(newTask) // ← сохраняем одну задачу
         showCreateView = false
     }
     
-    private func saveToCoreData(_ tasks: [ToDoItem]) {
-        coreDataManager.saveTasks(tasks)
+    func deleteTask(_ task: ToDoItem) {
+        DispatchQueue.global(qos: .background).async {
+            self.coreDataManager.deleteTask(task)
+            DispatchQueue.main.async {
+                self.tasks.removeAll { $0.id == task.id }
+            }
+        }
+    }
+
+    func editTask(_ task: ToDoItem) {
+        // Пример редактирования — показываем форму создания, но с уже заполненными данными
+        newTaskTitle = task.title
+        newTaskDescription = task.description ?? ""
+        newTaskDueDate = task.dueDate
+        isDueDateEnabled = task.dueDate != nil
+        showCreateView = true
+
+        // После редактирования можно либо обновить task.id (если ID уникален), либо по ID заменить
+        // Это зависит от логики saveTask()
     }
     
-    // Тестовые данные на случай оффлайн-режима
-    private func loadFallbackTasks() -> [ToDoItem] {
-        return [
-            ToDoItem(id: 1, title: "Тестовая задача 1", description: nil, dueDate: nil, completed: false),
-            ToDoItem(id: 2, title: "Тестовая задача 2", description: nil, dueDate: nil, completed: true),
-            ToDoItem(id: 1, title: "Тестовая задача 1", description: nil, dueDate: nil, completed: false),
-            ToDoItem(id: 2, title: "Тестовая задача 2", description: nil, dueDate: nil, completed: true),
-            ToDoItem(id: 1, title: "Тестовая задача 1", description: nil, dueDate: nil, completed: false),
-            ToDoItem(id: 2, title: "Тестовая задача 2", description: nil, dueDate: nil, completed: true),
-            ToDoItem(id: 1, title: "Тестовая задача 1", description: nil, dueDate: nil, completed: false),
-            ToDoItem(id: 2, title: "Тестовая задача 2", description: nil, dueDate: nil, completed: true),
-            ToDoItem(id: 1, title: "Тестовая задача 1", description: nil, dueDate: nil, completed: false),
-            ToDoItem(id: 2, title: "Тестовая задача 2", description: nil, dueDate: nil, completed: true),
-            ToDoItem(id: 1, title: "Тестовая задача 1", description: nil, dueDate: nil, completed: false),
-            ToDoItem(id: 2, title: "Тестовая задача 2", description: nil, dueDate: nil, completed: true)
-        ]
-    }
-}
-
-struct ToDoItem: Identifiable {
-    let id: Int
-    let title: String
-    let description: String?
-    let dueDate: Date?
-    var completed: Bool
-}
-
-class APIService {
-    func fetchTasks() -> AnyPublisher<[ToDoItem], Error> {
-        guard let url = URL(string: "https://dummyjson.com/todos") else {
-            return Fail(error: URLError(.badURL))
-                .eraseToAnyPublisher()
-        }
-        
-        return URLSession.shared.dataTaskPublisher(for: url)
-            .map(\.data)
-            .decode(type: [APIResponse].self, decoder: JSONDecoder())
-            .map { response in
-                response.map { ToDoItem(
-                    id: $0.id,
-                    title: $0.title,
-                    description: nil,
-                    dueDate: nil,
-                    completed: $0.completed
-                ) }
-            }
-            .receive(on: DispatchQueue.main)
-            .eraseToAnyPublisher()
-    }
-}
-
-struct APIResponse: Codable {
-    let id: Int
-    let title: String
-    let completed: Bool
-}
-
-class CoreDataManager {
-    func saveTasks(_ tasks: [ToDoItem]) {
-        print("Сохранено: \(tasks)")
-    }
+    
+    
+   
 }
